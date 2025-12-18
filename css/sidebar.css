@@ -1,0 +1,186 @@
+/* ===== Sidebar ===== */
+.sidebar {
+    width: var(--sidebar-width);
+    min-width: var(--sidebar-width);
+    height: 100vh;
+    background: var(--color-bg-main);
+    border-right: 1px solid var(--color-border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.sidebar-header {
+    padding: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.sidebar-header h2 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--color-accent);
+}
+
+/* ===== CP List ===== */
+.cp-list {
+    flex: 1;
+    overflow-y: auto;
+    list-style: none;
+    padding: 0.5rem;
+}
+
+.cp-item {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem;
+    margin-bottom: 0.5rem;
+    background: var(--color-bg-card);
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: var(--transition);
+    border: 2px solid transparent;
+}
+
+.cp-item:hover {
+    background: var(--color-bg-lighter);
+}
+
+.cp-item.selected {
+    border-color: var(--color-accent);
+    background: var(--color-bg-lighter);
+}
+
+.cp-item-status {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    margin-right: 0.75rem;
+    flex-shrink: 0;
+}
+
+.cp-item-status.disconnected {
+    background: var(--color-text-muted);
+}
+
+.cp-item-status.connecting {
+    background: var(--color-warning);
+    animation: pulse 0.5s infinite;
+}
+
+.cp-item-status.connected {
+    background: var(--color-success);
+    animation: pulse 2s infinite;
+}
+
+.cp-item-status.charging {
+    background: var(--color-accent);
+    animation: pulse 1s infinite;
+}
+
+.cp-item-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.cp-item-id {
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--color-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.cp-item-url {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.cp-item-actions {
+    display: flex;
+    gap: 0.3rem;
+    opacity: 0;
+    transition: var(--transition);
+}
+
+.cp-item:hover .cp-item-actions {
+    opacity: 1;
+}
+
+.cp-item-btn {
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    background: transparent;
+    color: var(--color-text-muted);
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+}
+
+.cp-item-btn:hover {
+    color: var(--color-text);
+    border-color: var(--color-text-muted);
+}
+
+.cp-item-btn.delete:hover {
+    color: var(--color-danger);
+    border-color: var(--color-danger);
+}
+
+/* ===== Sidebar Stats ===== */
+.sidebar-stats {
+    padding: 0.75rem 1rem;
+    display: flex;
+    justify-content: space-around;
+    background: var(--color-bg-card);
+    border-top: 1px solid var(--color-border);
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+}
+
+.sidebar-stats span {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.2rem;
+}
+
+/* ===== Sidebar Actions ===== */
+.sidebar-actions {
+    padding: 0.75rem;
+    display: flex;
+    gap: 0.5rem;
+    border-top: 1px solid var(--color-border);
+}
+
+/* ===== Empty State ===== */
+.cp-list-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 200px;
+    color: var(--color-text-muted);
+    text-align: center;
+    padding: 1rem;
+}
+
+.cp-list-empty-icon {
+    font-size: 2.5rem;
+    margin-bottom: 0.5rem;
+    opacity: 0.5;
+}
+
+.cp-list-empty-text {
+    font-size: 0.9rem;
+}

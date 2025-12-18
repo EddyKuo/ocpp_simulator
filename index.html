@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OCPP 1.6 Simulator</title>
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/sidebar.css">
+    <link rel="stylesheet" href="css/panel.css">
+    <link rel="stylesheet" href="css/log.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- 左側 Sidebar -->
+        <aside id="sidebar" class="sidebar">
+            <div class="sidebar-header">
+                <h2>⚡ Charge Points</h2>
+                <button id="btn-add-cp" class="btn-icon" title="新增充電樁">+</button>
+            </div>
+            <ul id="cp-list" class="cp-list">
+                <!-- 動態產生 CP 項目 -->
+            </ul>
+            <div class="sidebar-stats" id="sidebar-stats">
+                <span id="stats-total">0 總計</span>
+                <span id="stats-connected">0 連線</span>
+                <span id="stats-charging">0 充電中</span>
+            </div>
+            <div class="sidebar-actions">
+                <button id="btn-connect-all" class="btn-action">全部連線</button>
+                <button id="btn-disconnect-all" class="btn-action btn-danger">全部斷線</button>
+            </div>
+            <div class="sidebar-actions" style="padding-top: 0;">
+                <button id="btn-clear-storage" class="btn-action btn-small"
+                    style="font-size: 0.7rem; opacity: 0.6;">清除所有資料</button>
+            </div>
+        </aside>
+
+        <!-- 右側主面板 -->
+        <main class="main-panel">
+            <!-- 頂部標題區 -->
+            <header id="cp-header" class="cp-header">
+                <div class="cp-title-row">
+                    <h1 id="cp-title">請選擇或新增充電樁</h1>
+                    <span id="cp-status" class="status-badge status-disconnected">未連線</span>
+                </div>
+                <div class="cp-info-row" id="cp-info-row" style="display: none;">
+                    <span id="cp-url" class="cp-info-item"></span>
+                    <span id="cp-connectors" class="cp-info-item"></span>
+                </div>
+            </header>
+
+            <!-- 操作面板 -->
+            <section id="control-panel" class="control-panel" style="display: none;">
+                <!-- 連線操作 -->
+                <div class="control-group">
+                    <h3>連線操作</h3>
+                    <div class="button-row">
+                        <button id="btn-connect" class="btn-primary">連線</button>
+                        <button id="btn-disconnect" class="btn-secondary">斷線</button>
+                        <button id="btn-heartbeat" class="btn-secondary">Heartbeat</button>
+                        <button id="btn-boot" class="btn-secondary">BootNotification</button>
+                    </div>
+                </div>
+
+                <!-- 連接器狀態 -->
+                <div class="control-group">
+                    <h3>連接器狀態</h3>
+                    <div id="connector-list" class="connector-list">
+                        <!-- 動態產生 -->
+                    </div>
+                </div>
+
+                <!-- 充電操作 -->
+                <div class="control-group">
+                    <h3>充電操作</h3>
+                    <div class="input-row">
+                        <label>
+                            連接器:
+                            <select id="select-connector">
+                                <option value="1">Connector 1</option>
+                            </select>
+                        </label>
+                        <label>
+                            ID Tag:
+                            <input type="text" id="input-idtag" placeholder="RFID Card ID" value="TEST001">
+                        </label>
+                    </div>
+                    <div class="button-row">
+                        <button id="btn-authorize" class="btn-secondary">刷卡 (Authorize)</button>
+                        <button id="btn-plug" class="btn-secondary">插槍 (Preparing)</button>
+                        <button id="btn-start" class="btn-primary">開始充電</button>
+                        <button id="btn-stop" class="btn-danger">停止充電</button>
+                    </div>
+                </div>
+
+                <!-- 電表讀數 -->
+                <div class="control-group">
+                    <h3>電表讀數</h3>
+                    <div class="meter-display" id="meter-display">
+                        <div class="meter-item">
+                            <span class="meter-label">累計電量</span>
+                            <span class="meter-value" id="meter-energy">0 Wh</span>
+                        </div>
+                        <div class="meter-item">
+                            <span class="meter-label">交易 ID</span>
+                            <span class="meter-value" id="meter-txid">--</span>
+                        </div>
+                        <div class="meter-item">
+                            <span class="meter-label">即時功率</span>
+                            <span class="meter-value" id="meter-power">0 kW</span>
+                        </div>
+                        <div class="meter-item">
+                            <span class="meter-label">電壓</span>
+                            <span class="meter-value" id="meter-voltage">0 V</span>
+                        </div>
+                        <div class="meter-item">
+                            <span class="meter-label">電流</span>
+                            <span class="meter-value" id="meter-current">0 A</span>
+                        </div>
+                    </div>
+                    <div class="button-row">
+                        <button id="btn-meter-values" class="btn-secondary">手動送 MeterValues</button>
+                    </div>
+                </div>
+
+                <!-- 充電曲線圖 -->
+                <div class="control-group">
+                    <h3>📊 充電曲線</h3>
+                    <div class="chart-container" id="chart-container">
+                        <canvas id="charging-chart"></canvas>
+                    </div>
+                    <div class="chart-legend">
+                        <span class="legend-item power">⚡ 功率 (kW)</span>
+                        <span class="legend-item voltage">🔌 電壓 (V)</span>
+                        <span class="legend-item current">💡 電流 (A)</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Log 面板 -->
+            <section id="log-panel" class="log-panel">
+                <div class="log-header">
+                    <h3>📋 WebSocket Log</h3>
+                    <div class="log-filters">
+                        <select id="log-filter-direction">
+                            <option value="all">全部訊息</option>
+                            <option value="tx">TX (發送)</option>
+                            <option value="rx">RX (接收)</option>
+                            <option value="info">Info</option>
+                            <option value="error">Error</option>
+                        </select>
+                        <button id="btn-export-log" class="btn-small">匯出</button>
+                        <button id="btn-clear-log" class="btn-small btn-danger">清除</button>
+                    </div>
+                </div>
+                <div id="log-content" class="log-content">
+                    <div class="log-empty">尚無日誌記錄</div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modal: 新增 CP -->
+    <div id="modal-add-cp" class="modal hidden">
+        <div class="modal-overlay"></div>
+        <div class="modal-content">
+            <h3>新增充電樁</h3>
+            <form id="form-add-cp">
+                <div class="form-group">
+                    <label for="input-cp-id">充電樁 ID:</label>
+                    <input type="text" id="input-cp-id" name="cpId" placeholder="CP001" required>
+                </div>
+                <div class="form-group">
+                    <label for="input-server-url">Server URL:</label>
+                    <input type="text" id="input-server-url" name="serverUrl" placeholder="ws://localhost:9000/ocpp"
+                        required value="ws://localhost:9000/ocpp">
+                </div>
+                <div class="form-group">
+                    <label for="input-connector-count">連接器數量:</label>
+                    <input type="number" id="input-connector-count" name="connectorCount" value="1" min="1" max="10">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn-cancel" id="btn-modal-cancel">取消</button>
+                    <button type="submit" class="btn-primary">新增</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: 確認刪除 -->
+    <div id="modal-confirm-delete" class="modal hidden">
+        <div class="modal-overlay"></div>
+        <div class="modal-content modal-small">
+            <h3>確認刪除</h3>
+            <p>確定要刪除充電樁 <strong id="delete-cp-id"></strong> 嗎？</p>
+            <div class="modal-actions">
+                <button type="button" class="btn-cancel" id="btn-delete-cancel">取消</button>
+                <button type="button" class="btn-danger" id="btn-delete-confirm">刪除</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="js/app.js"></script>
+</body>
+
+</html>
