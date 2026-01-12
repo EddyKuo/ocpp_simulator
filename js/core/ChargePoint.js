@@ -46,7 +46,7 @@ export class ChargePoint {
 
         // 配置
         this.configuration = new Map();
-        this._initConfiguration();
+        this._initConfiguration(options.configuration);
 
         // 充電設定檔
         this.chargingProfiles = [];
@@ -66,11 +66,11 @@ export class ChargePoint {
         this.heartbeatInterval = null;
         this.heartbeatIntervalMs = 60000;
 
-        // MeterValue - Sampled
-        this.meterValueInterval = null;
+        // MeterValue - Sampled (connectorId -> intervalId)
+        this.meterValueInterval = new Map();
 
-        // MeterValue - Clock-Aligned
-        this.clockAlignedInterval = null;
+        // MeterValue - Clock-Aligned (connectorId -> intervalId)
+        this.clockAlignedInterval = new Map();
 
         // 交易追蹤 (用於 transactionData)
         this.transactionStartTime = new Map(); // connectorId -> startTime
@@ -112,7 +112,8 @@ export class ChargePoint {
         }
     }
 
-    _initConfiguration() {
+    _initConfiguration(savedConfiguration = null) {
+        // 1. 載入預設配置
         Object.values(DefaultConfiguration).forEach(config => {
             if (config && config.key) {
                 this.configuration.set(config.key, {
@@ -122,12 +123,36 @@ export class ChargePoint {
                 });
             }
         });
-        // 更新連接器數量
+
+        // 2. 如果有儲存的配置，覆蓋預設值
+        if (savedConfiguration && Array.isArray(savedConfiguration)) {
+            savedConfiguration.forEach(([key, savedConfig]) => {
+                // 確保 key 存在於預設配置中，或者是允許的自定義 key
+                if (this.configuration.has(key)) {
+                    const currentConfig = this.configuration.get(key);
+                    if (!currentConfig.readonly) {
+                        currentConfig.value = savedConfig.value;
+                        this.configuration.set(key, currentConfig);
+                    }
+                } else {
+                    // 如果是額外的配置 (非預設)，也加入
+                    this.configuration.set(key, savedConfig);
+                }
+            });
+        }
+
+        // 3. 強制更新連接器數量
         this.configuration.set('NumberOfConnectors', {
             key: 'NumberOfConnectors',
             value: String(this.connectorCount),
             readonly: true
         });
+
+        // 4. 更新內部狀態以匹配配置 (例如 HeartbeatInterval)
+        const heartbeatConfig = this.configuration.get('HeartbeatInterval');
+        if (heartbeatConfig) {
+            this.heartbeatIntervalMs = parseInt(heartbeatConfig.value) * 1000;
+        }
     }
 
     // ==================== WebSocket 連線 ====================
@@ -759,6 +784,22 @@ export class ChargePoint {
             this._startHeartbeat(); // 重啟
         }
 
+        // 特殊處理：MeterValueSampleInterval
+        if (key === 'MeterValueSampleInterval') {
+            // 重新啟動所有正在進行的採樣
+            this.meterValueInterval.forEach((_, connectorId) => {
+                this._startMeterValueSampling(connectorId);
+            });
+        }
+
+        // 特殊處理：ClockAlignedDataInterval
+        if (key === 'ClockAlignedDataInterval') {
+            // 重新啟動所有正在進行的時鐘對齊採樣
+            this.clockAlignedInterval.forEach((_, connectorId) => {
+                this._startClockAlignedSampling(connectorId);
+            });
+        }
+
         this._sendResponse(messageId, { status: ConfigurationStatus.ACCEPTED });
         this._log('info', `Configuration changed: ${key} = ${value}`);
     }
@@ -1087,10 +1128,13 @@ export class ChargePoint {
     }
 
     _startMeterValueSampling(connectorId) {
-        this._stopMeterValueSampling();
+        this._stopMeterValueSampling(connectorId);
 
         const intervalConfig = this.configuration.get('MeterValueSampleInterval');
         const intervalSec = intervalConfig ? parseInt(intervalConfig.value) : 30;
+
+        // 如果間隔 <= 0，不啟動採樣
+        if (intervalSec <= 0) return;
 
         // 定義發送 MeterValues 的函數
         const sendSample = () => {
@@ -1116,15 +1160,23 @@ export class ChargePoint {
         sendSample();
 
         // 設定週期性發送
-        this.meterValueInterval = setInterval(sendSample, intervalSec * 1000);
+        const intervalId = setInterval(sendSample, intervalSec * 1000);
+        this.meterValueInterval.set(connectorId, intervalId);
 
-        this._log('info', `MeterValue sampling started (interval: ${intervalSec}s)`);
+        this._log('info', `MeterValue sampling started for connector ${connectorId} (interval: ${intervalSec}s)`);
     }
 
-    _stopMeterValueSampling() {
-        if (this.meterValueInterval) {
-            clearInterval(this.meterValueInterval);
-            this.meterValueInterval = null;
+    _stopMeterValueSampling(connectorId) {
+        // 如果指定 connectorId，只停止該連接器
+        if (connectorId !== undefined) {
+            if (this.meterValueInterval.has(connectorId)) {
+                clearInterval(this.meterValueInterval.get(connectorId));
+                this.meterValueInterval.delete(connectorId);
+            }
+        } else {
+            // 否則停止所有
+            this.meterValueInterval.forEach(intervalId => clearInterval(intervalId));
+            this.meterValueInterval.clear();
         }
     }
 
@@ -1133,7 +1185,7 @@ export class ChargePoint {
      * 在時間對齊點 (如 :00, :15, :30, :45) 發送 MeterValues
      */
     _startClockAlignedSampling(connectorId) {
-        this._stopClockAlignedSampling();
+        this._stopClockAlignedSampling(connectorId);
 
         const intervalConfig = this.configuration.get('ClockAlignedDataInterval');
         const intervalSec = intervalConfig ? parseInt(intervalConfig.value) : 0;
@@ -1154,22 +1206,36 @@ export class ChargePoint {
             this.sendMeterValues(connectorId, null, null, 'Sample.Clock');
 
             // 然後啟動週期性採樣
-            this.clockAlignedInterval = setInterval(() => {
+            const intervalId = setInterval(() => {
                 this.sendMeterValues(connectorId, null, null, 'Sample.Clock');
             }, intervalSec * 1000);
+
+            // 更新 Map 中的計時器 ID (從 timeout 變成 interval)
+            this.clockAlignedInterval.set(connectorId, intervalId);
+
         }, delayToNext);
 
         // 儲存初始計時器以便清理
-        this.clockAlignedInterval = initialTimeout;
+        this.clockAlignedInterval.set(connectorId, initialTimeout);
 
-        this._log('info', `Clock-aligned sampling scheduled (interval: ${intervalSec}s, next in ${(delayToNext / 1000).toFixed(0)}s)`);
+        this._log('info', `Clock-aligned sampling scheduled for connector ${connectorId} (interval: ${intervalSec}s, next in ${(delayToNext / 1000).toFixed(0)}s)`);
     }
 
-    _stopClockAlignedSampling() {
-        if (this.clockAlignedInterval) {
-            clearTimeout(this.clockAlignedInterval);
-            clearInterval(this.clockAlignedInterval);
-            this.clockAlignedInterval = null;
+    _stopClockAlignedSampling(connectorId) {
+        if (connectorId !== undefined) {
+            if (this.clockAlignedInterval.has(connectorId)) {
+                // 不確定是 setTimeout 還是 setInterval，都一樣清除
+                const timerId = this.clockAlignedInterval.get(connectorId);
+                clearTimeout(timerId);
+                clearInterval(timerId);
+                this.clockAlignedInterval.delete(connectorId);
+            }
+        } else {
+            this.clockAlignedInterval.forEach(timerId => {
+                clearTimeout(timerId);
+                clearInterval(timerId);
+            });
+            this.clockAlignedInterval.clear();
         }
     }
 

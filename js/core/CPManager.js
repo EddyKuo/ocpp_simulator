@@ -171,12 +171,16 @@ export class CPManager {
     _saveToStorage() {
         const data = [];
         this.chargePoints.forEach((cp, id) => {
+            // 將 Configuration Map 轉換為 Array 以便序列化
+            const configuration = Array.from(cp.configuration.entries());
+
             data.push({
                 id: cp.id,
                 url: cp.url,
                 connectorCount: cp.connectorCount,
                 vendor: cp.vendor,
-                model: cp.model
+                model: cp.model,
+                configuration: configuration
             });
         });
         localStorage.setItem('ocpp_chargepoints', JSON.stringify(data));
@@ -195,7 +199,8 @@ export class CPManager {
                                 const cp = new ChargePoint(cpData.id, cpData.url, {
                                     connectorCount: cpData.connectorCount || 1,
                                     vendor: cpData.vendor,
-                                    model: cpData.model
+                                    model: cpData.model,
+                                    configuration: cpData.configuration // 傳遞儲存的配置
                                 });
                                 this.chargePoints.set(cpData.id, cp);
                             } catch (cpError) {
