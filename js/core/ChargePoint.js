@@ -70,6 +70,7 @@ export class ChargePoint {
         this.meterValueInterval = null;
 
         // MeterValue - Clock-Aligned
+        this.clockAlignedTimeout = null;
         this.clockAlignedInterval = null;
 
         // 交易追蹤 (用於 transactionData)
@@ -350,8 +351,8 @@ export class ChargePoint {
             if (response.status === RegistrationStatus.ACCEPTED) {
                 this._log('info', 'BootNotification accepted');
 
-                // 設定 heartbeat interval
-                if (response.interval) {
+                // 設定 heartbeat interval（OCPP spec 要求必須為正整數）
+                if (response.interval > 0) {
                     this.heartbeatIntervalMs = response.interval * 1000;
                     this.configuration.set('HeartbeatInterval', {
                         key: 'HeartbeatInterval',
@@ -1149,7 +1150,9 @@ export class ChargePoint {
         const delayToNext = (intervalSec - secondsIntoInterval) * 1000;
 
         // 先設定一次性計時器到達下一個對齊點
-        const initialTimeout = setTimeout(() => {
+        this.clockAlignedTimeout = setTimeout(() => {
+            this.clockAlignedTimeout = null;
+
             // 發送 Clock-Aligned MeterValues
             this.sendMeterValues(connectorId, null, null, 'Sample.Clock');
 
@@ -1159,15 +1162,15 @@ export class ChargePoint {
             }, intervalSec * 1000);
         }, delayToNext);
 
-        // 儲存初始計時器以便清理
-        this.clockAlignedInterval = initialTimeout;
-
         this._log('info', `Clock-aligned sampling scheduled (interval: ${intervalSec}s, next in ${(delayToNext / 1000).toFixed(0)}s)`);
     }
 
     _stopClockAlignedSampling() {
+        if (this.clockAlignedTimeout) {
+            clearTimeout(this.clockAlignedTimeout);
+            this.clockAlignedTimeout = null;
+        }
         if (this.clockAlignedInterval) {
-            clearTimeout(this.clockAlignedInterval);
             clearInterval(this.clockAlignedInterval);
             this.clockAlignedInterval = null;
         }

@@ -64,6 +64,13 @@ const deleteCpId = $('#delete-cp-id');
 const btnDeleteCancel = $('#btn-delete-cancel');
 const btnDeleteConfirm = $('#btn-delete-confirm');
 
+// ==================== Utils ====================
+function escapeHTML(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
 // ==================== State ====================
 const cpManager = CPManager.getInstance();
 let logEntries = [];
@@ -174,7 +181,11 @@ function setupEventListeners() {
         const cp = cpManager.getSelectedChargePoint();
         const idTag = inputIdTag.value.trim();
         if (cp && cp.isConnected() && idTag) {
-            await cp.sendAuthorize(idTag);
+            try {
+                await cp.sendAuthorize(idTag);
+            } catch (error) {
+                console.error('Authorize failed:', error);
+            }
         }
     });
 
@@ -190,13 +201,11 @@ function setupEventListeners() {
                 case ChargePointStatus.AVAILABLE:
                     // 插槍：Available → Preparing
                     cp._setConnectorStatus(connectorId, ChargePointStatus.PREPARING);
-                    btnPlug.textContent = '🔌 拔槍';
                     break;
 
                 case ChargePointStatus.PREPARING:
                     // 拔槍（未開始充電）：Preparing → Available
                     cp._setConnectorStatus(connectorId, ChargePointStatus.AVAILABLE);
-                    btnPlug.textContent = '🔌 插槍';
                     break;
 
                 case ChargePointStatus.CHARGING:
@@ -209,7 +218,6 @@ function setupEventListeners() {
                 case ChargePointStatus.FINISHING:
                     // 結束中：Finishing → Available (模擬拔槍)
                     cp._setConnectorStatus(connectorId, ChargePointStatus.AVAILABLE);
-                    btnPlug.textContent = '🔌 插槍';
                     break;
 
                 default:
@@ -224,7 +232,11 @@ function setupEventListeners() {
         const connectorId = parseInt(selectConnector.value);
         const idTag = inputIdTag.value.trim();
         if (cp && cp.isConnected() && idTag) {
-            await cp.sendStartTransaction(connectorId, idTag);
+            try {
+                await cp.sendStartTransaction(connectorId, idTag);
+            } catch (error) {
+                console.error('StartTransaction failed:', error);
+            }
         }
     });
 
@@ -232,7 +244,11 @@ function setupEventListeners() {
         const cp = cpManager.getSelectedChargePoint();
         const connectorId = parseInt(selectConnector.value);
         if (cp && cp.isConnected()) {
-            await cp.sendStopTransaction(connectorId);
+            try {
+                await cp.sendStopTransaction(connectorId);
+            } catch (error) {
+                console.error('StopTransaction failed:', error);
+            }
         }
     });
 
@@ -375,13 +391,16 @@ function renderCPList() {
         li.innerHTML = `
             <div class="cp-item-status ${statusClass}"></div>
             <div class="cp-item-info">
-                <div class="cp-item-id">${id}</div>
-                <div class="cp-item-url">${cp.url}</div>
+                <div class="cp-item-id"></div>
+                <div class="cp-item-url"></div>
             </div>
             <div class="cp-item-actions">
-                <button class="cp-item-btn delete" title="刪除" data-id="${id}">✕</button>
+                <button class="cp-item-btn delete" title="刪除">✕</button>
             </div>
         `;
+        li.querySelector('.cp-item-id').textContent = id;
+        li.querySelector('.cp-item-url').textContent = cp.url;
+        li.querySelector('.cp-item-btn.delete').dataset.id = id;
 
         li.addEventListener('click', (e) => {
             if (!e.target.classList.contains('cp-item-btn')) {
@@ -399,7 +418,7 @@ function renderCPList() {
 }
 
 function updateCPItemStatus(cpId, status) {
-    const item = cpList.querySelector(`[data-id="${cpId}"]`)?.closest('.cp-item');
+    const item = cpList.querySelector(`[data-id="${CSS.escape(cpId)}"]`)?.closest('.cp-item');
     if (item) {
         const statusEl = item.querySelector('.cp-item-status');
         statusEl.className = `cp-item-status ${status}`;
@@ -555,23 +574,23 @@ function renderLog() {
     }
 
     logContent.innerHTML = filtered.map(entry => {
-        const time = formatDisplayTime(entry.timestamp);
+        const time = escapeHTML(formatDisplayTime(entry.timestamp));
         const isMessage = entry.level === 'tx' || entry.level === 'rx';
         let message = entry.message;
 
-        // 嘗試格式化 JSON
+        // 嘗試格式化 JSON（formatJSONWithHighlight 輸出受控 HTML span，非使用者輸入）
         if (isMessage) {
             const parsed = safeJSONParse(message);
-            if (parsed) {
-                message = formatJSONWithHighlight(parsed);
-            }
+            message = parsed ? formatJSONWithHighlight(parsed) : escapeHTML(message);
+        } else {
+            message = escapeHTML(message);
         }
 
         return `
             <div class="log-entry ${isMessage ? 'expandable' : ''}">
                 <span class="log-time">${time}</span>
-                <span class="log-cp">${entry.cpId}</span>
-                <span class="log-type ${entry.level}">${entry.level}</span>
+                <span class="log-cp">${escapeHTML(entry.cpId)}</span>
+                <span class="log-type ${escapeHTML(entry.level)}">${escapeHTML(entry.level)}</span>
                 <span class="log-message">${message}</span>
             </div>
         `;
